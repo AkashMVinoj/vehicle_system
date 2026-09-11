@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveHub - Vehicle Reservation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-light: #f8fafc;
+            --card-radius: 12px;
+        }
+        body {
+            background-color: var(--bg-light);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        .custom-card {
+            border: none;
+            border-radius: var(--card-radius);
+        }
+        .badge-available {
+            background-color: #dcfce7;
+            color: #15803d;
+        }
+        .badge-booked {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold text-primary fs-4" href="#">
+                <i class="bi bi-car-front-fill me-2"></i>Drive<span class="text-white">Hub</span>
+            </a>
+            <span class="navbar-text text-light small fw-semibold">
+                Customer Booking Portal
+            </span>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid px-4 py-4">
+
+        <!-- Global Alert Box -->
+        <div id="alertBox"></div>
+
+        <div class="row g-4">
+            
+            <!-- Left Column: Available Fleet List -->
+            <div class="col-lg-7">
+                <div class="card custom-card shadow-sm bg-white">
+                    <div class="card-header bg-white py-3 border-0">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5">
+                                <h5 class="fw-bold mb-0"><i class="bi bi-car-front me-2 text-primary"></i>Available Vehicles</h5>
+                            </div>
+                            <div class="col-md-7">
+                                <input type="text" id="filterBrand" class="form-control form-control-sm" placeholder="Search by brand or name...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">ID</th>
+                                        <th>Vehicle</th>
+                                        <th>Brand</th>
+                                        <th>Price/Day</th>
+                                        <th>Status</th>
+                                        <th class="text-end pe-3">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vehicleTableBody">
+                                    <!-- Dynamic rows loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Reserve Vehicle Form -->
+            <div class="col-lg-5">
+                <div class="card custom-card shadow-sm bg-white">
+                    <div class="card-header bg-white py-3 border-0">
+                        <h5 class="fw-bold mb-0 text-success">
+                            <i class="bi bi-bookmark-check-fill me-2"></i>Reserve Vehicle
+                        </h5>
+                    </div>
+                    <div class="card-body pt-0">
+                        <form id="bookingForm" onsubmit="submitBooking(event)">
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">Selected Vehicle ID</label>
+                                <input type="number" id="bookingVehicleId" class="form-control bg-light" required placeholder="Select a vehicle from list" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">Customer Name</label>
+                                <input type="text" id="customerName" class="form-control" placeholder="e.g. Rahul Kumar" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">Phone Number</label>
+                                <input type="tel" id="customerPhone" class="form-control" placeholder="10 Digit Number" required>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Start Date</label>
+                                    <input type="date" id="startDate" class="form-control" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">End Date</label>
+                                    <input type="date" id="endDate" class="form-control" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 fw-semibold py-2">
+                                <i class="bi bi-check-circle me-1"></i> Confirm Booking
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+    const API_BASE = '/api';
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function fetchVehicles() {
+        const searchQuery = document.getElementById('filterBrand').value.trim();
+        let url = `${API_BASE}/vehicles/`;
+        if (searchQuery) {
+            url += `?search=${encodeURIComponent(searchQuery)}`;
+        }
+
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+
+            const data = await res.json();
+            const tbody = document.getElementById('vehicleTableBody');
+            tbody.innerHTML = '';
+
+            const vehicles = Array.isArray(data) ? data : (data.results || []);
+
+            if (vehicles.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted">No vehicles available at the moment.</td></tr>`;
+                return;
+            }
+
+            vehicles.forEach(v => {
+                const badgeClass = v.is_available ? 'badge-available' : 'badge-booked';
+                const badgeText = v.is_available ? 'Available' : 'Reserved';
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="ps-3 fw-bold">#${v.id}</td>
+                        <td class="fw-semibold">${v.name} (${v.year})</td>
+                        <td>${v.brand}</td>
+                        <td class="fw-bold text-primary">₹${v.price_per_day}</td>
+                        <td><span class="badge ${badgeClass} px-2 py-1">${badgeText}</span></td>
+                        <td class="text-end pe-3">
+                            <button class="btn btn-sm ${v.is_available ? 'btn-primary' : 'btn-secondary'}" 
+                                onclick="selectVehicle(${v.id})" ${!v.is_available ? 'disabled' : ''}>
+                                ${v.is_available ? 'Select' : 'Booked'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            showAlert('Unable to load vehicle list.', 'danger');
+        }
+    }
+
+    document.getElementById('filterBrand').addEventListener('input', fetchVehicles);
+
+    function selectVehicle(id) {
+        document.getElementById('bookingVehicleId').value = id;
+        document.getElementById('customerName').focus();
+    }
+
+    async function submitBooking(event) {
+        event.preventDefault();
+
+        const payload = {
+            vehicle: parseInt(document.getElementById('bookingVehicleId').value),
+            customer_name: document.getElementById('customerName').value,
+            customer_phone: document.getElementById('customerPhone').value,
+            start_date: document.getElementById('startDate').value,
+            end_date: document.getElementById('endDate').value
+        };
+
+        const headers = { 
+            'Content-Type': 'application/json'
+        };
+
+        const csrftoken = getCookie('csrftoken');
+        if (csrftoken) {
+            headers['X-CSRFToken'] = csrftoken;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/bookings/`, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            if (res.status === 201 || res.ok) {
+                showAlert(`<strong>Booking Successful!</strong> Vehicle reserved. Total Bill: ₹${data.total_amount || ''}`, 'success');
+                document.getElementById('bookingForm').reset();
+                fetchVehicles();
+            } else {
+                let errorMsg = '';
+                if (typeof data === 'object') {
+                    for (const key in data) {
+                        const val = Array.isArray(data[key]) ? data[key].join(', ') : data[key];
+                        errorMsg += `• <strong>${key}</strong>: ${val}<br>`;
+                    }
+                } else {
+                    errorMsg = 'Failed to process booking.';
+                }
+                showAlert(errorMsg, 'danger');
+            }
+        } catch (err) {
+            console.error("Booking submit error:", err);
+            showAlert(`<strong>Booking Submission Failed:</strong> ${err.message}`, 'danger');
+        }
+    }
+
+    function showAlert(message, type) {
+        document.getElementById('alertBox').innerHTML = `
+            <div class="alert alert-${type} alert-dismissible fade show shadow-sm mb-4" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+    }
+
+    fetchVehicles();
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
